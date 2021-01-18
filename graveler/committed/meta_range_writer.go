@@ -72,9 +72,7 @@ func (w *GeneralMetaRangeWriter) WriteRecord(record graveler.ValueRecord) error 
 	if err != nil {
 		return fmt.Errorf("write record to range: %w", err)
 	}
-	w.lastKey = make(Key, len(record.Key))
-	copy(w.lastKey, record.Key)
-
+	w.lastKey = Key(record.Key.Copy())
 	if w.shouldBreakAtKey(record.Key) {
 		return w.closeCurrentRange()
 	}
@@ -159,10 +157,10 @@ func (w *GeneralMetaRangeWriter) shouldBreakAtKey(key graveler.Key) bool {
 // writeRangesToMetaRange writes all ranges to a MetaRange and returns the MetaRangeID
 func (w *GeneralMetaRangeWriter) writeRangesToMetaRange() (*graveler.MetaRangeID, error) {
 	metaRangeWriter, err := w.metaRangeManager.GetWriter(w.ctx, w.namespace)
-	metaRangeWriter.AddMetadata(MetadataTypeKey, MetadataMetarangesType)
 	if err != nil {
 		return nil, fmt.Errorf("failed creating metarange writer: %w", err)
 	}
+	metaRangeWriter.AddMetadata(MetadataTypeKey, MetadataMetarangesType)
 	defer func() {
 		if abortErr := metaRangeWriter.Abort(); abortErr != nil {
 			logging.Default().WithField("namespace", w.namespace).Errorf("failed aborting metarange writer: %w", err)

@@ -135,7 +135,7 @@ func (d *diffIterator) Next() bool {
 			d.rightValue.rng, d.rightValue.err = diffIteratorNextRange(d.right)
 		case diffItCompareResultSameKeys:
 			// same keys on different ranges
-			d.currentDiff = graveler.NewDiffResult(graveler.DiffTypeChanged, d.rightValue.record.Key, d.rightValue.record.Value, d.leftValue.record.Identity)
+			d.currentDiff = graveler.NewDiffResult(graveler.DiffTypeChanged, d.rightValue.record.Key.Copy(), d.rightValue.record.Value, d.leftValue.record.Identity)
 			d.leftValue.record, d.leftValue.rng, d.leftValue.err = diffIteratorNextValue(d.left)
 			d.rightValue.record, d.rightValue.rng, d.rightValue.err = diffIteratorNextValue(d.right)
 			return true
@@ -148,12 +148,12 @@ func (d *diffIterator) Next() bool {
 			d.rightValue.record, d.rightValue.rng, d.rightValue.err = diffIteratorNextValue(d.right)
 		case diffItCompareResultLeftBeforeRight:
 			// nothing on right, or left before right
-			d.currentDiff = graveler.NewDiffResult(graveler.DiffTypeRemoved, d.leftValue.record.Key, d.leftValue.record.Value, d.leftValue.record.Identity)
+			d.currentDiff = graveler.NewDiffResult(graveler.DiffTypeRemoved, d.leftValue.record.Key.Copy(), d.leftValue.record.Value, d.leftValue.record.Identity)
 			d.leftValue.record, d.leftValue.rng, d.leftValue.err = diffIteratorNextValue(d.left)
 			return true
 		case diffItCompareResultRightBeforeLeft:
 			// nothing on left, or right before left
-			d.currentDiff = graveler.NewDiffResult(graveler.DiffTypeAdded, d.rightValue.record.Key, d.rightValue.record.Value, nil)
+			d.currentDiff = graveler.NewDiffResult(graveler.DiffTypeAdded, d.rightValue.record.Key.Copy(), d.rightValue.record.Value, nil)
 			d.rightValue.record, d.rightValue.rng, d.rightValue.err = diffIteratorNextValue(d.right)
 			return true
 		}
