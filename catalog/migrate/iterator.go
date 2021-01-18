@@ -57,12 +57,8 @@ func (it *Iterator) Next() bool {
 		return false
 	}
 	it.value = it.buf[0]
+	it.buf = it.buf[1:]
 	it.offset = string(it.value.Path)
-	if len(it.buf) > 1 {
-		it.buf = it.buf[1:]
-	} else {
-		it.buf = it.buf[:0]
-	}
 	return true
 }
 

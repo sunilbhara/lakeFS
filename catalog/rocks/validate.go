@@ -12,8 +12,6 @@ import (
 
 const (
 	MaxPathLength = 1024
-
-	minControlCharCode = 040 // space
 )
 
 var (
@@ -127,11 +125,16 @@ func ValidateTagID(v interface{}) error {
 		return ErrInvalidValue
 	}
 	for _, r := range tag {
-		if r <= minControlCharCode {
+		if isControlCodeOrSpace(r) {
 			return ErrInvalidValue
 		}
 	}
 	return nil
+}
+
+func isControlCodeOrSpace(r rune) bool {
+	const space = 0x20
+	return r <= space
 }
 
 func ValidateCommitID(v interface{}) error {

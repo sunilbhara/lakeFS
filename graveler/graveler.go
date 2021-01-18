@@ -247,7 +247,7 @@ type VersionController interface {
 	// Returns ErrTreeNotFound if the referenced treeID doesn't exist.
 	CommitExistingMetaRange(ctx context.Context, repositoryID RepositoryID, branchID BranchID, metaRangeID MetaRangeID, committer string, message string, metadata Metadata) (CommitID, error)
 
-	// AddCommitNoLock creates a commit and associated it to the repository without locking metadata update.
+	// AddCommitNoLock creates a commit and associates it with the repository without locking metadata for update.
 	// Returns ErrTreeNotFound if the referenced treeID doesn't exist.
 	AddCommitNoLock(ctx context.Context, repositoryID RepositoryID, commit Commit) (CommitID, error)
 
