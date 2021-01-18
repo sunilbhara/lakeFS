@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/treeverse/lakefs/graveler"
 	"github.com/treeverse/lakefs/ident"
@@ -11,6 +12,8 @@ import (
 
 const (
 	MaxPathLength = 1024
+
+	minControlCharCode = 40
 )
 
 var (
@@ -105,11 +108,25 @@ func ValidateTagID(v interface{}) error {
 	if !ok {
 		panic(ErrInvalidType)
 	}
-	if len(s) == 0 {
+	// http://git-scm.com/docs/git-check-ref-format
+	tag := string(s)
+	if len(tag) == 0 || tag == "@" {
 		return ErrRequiredValue
 	}
-	if !reValidBranchID.MatchString(string(s)) {
+	if strings.HasSuffix(tag, ".") || strings.HasSuffix(tag, ".lock") || strings.HasSuffix(tag, "/") {
 		return ErrInvalidValue
+	}
+	if strings.Contains(tag, "..") || strings.Contains(tag, "//") || strings.Contains(tag, "@{") {
+		return ErrInvalidValue
+	}
+	// Not like git we do enable '~' to support migrate from our previous ref format where commit started with tilda
+	if strings.ContainsAny(tag, "^:?*[\\ ") {
+		return ErrInvalidValue
+	}
+	for _, r := range tag {
+		if r < minControlCharCode {
+			return ErrInvalidValue
+		}
 	}
 	return nil
 }

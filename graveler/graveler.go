@@ -111,6 +111,15 @@ func (ps CommitParents) Identity() []byte {
 	return buf.Identity()
 }
 
+func (ps CommitParents) Contains(commitID CommitID) bool {
+	for _, c := range ps {
+		if c == commitID {
+			return true
+		}
+	}
+	return false
+}
+
 // Commit represents commit metadata (author, time, MetaRangeID)
 type Commit struct {
 	Committer    string        `db:"committer"`
@@ -237,6 +246,9 @@ type VersionController interface {
 	// Returns ErrDirtyBranch if the branch has uncommitted changes.
 	// Returns ErrTreeNotFound if the referenced treeID doesn't exist.
 	CommitExistingMetaRange(ctx context.Context, repositoryID RepositoryID, branchID BranchID, metaRangeID MetaRangeID, committer string, message string, metadata Metadata) (CommitID, error)
+
+	// AddCommitNoLock lower API used to add commit into a repository. It will verify that the commit meta-range is accessible but will not lock any metadata update.
+	AddCommitNoLock(ctx context.Context, repositoryID RepositoryID, commit Commit) (CommitID, error)
 
 	// GetCommit returns the Commit metadata object for the given CommitID
 	GetCommit(ctx context.Context, repositoryID RepositoryID, commitID CommitID) (*Commit, error)
@@ -471,6 +483,10 @@ func (id BranchID) String() string {
 	return string(id)
 }
 
+func (id BranchID) Ref() Ref {
+	return Ref(id)
+}
+
 func (id Ref) String() string {
 	return string(id)
 }
@@ -481,6 +497,10 @@ func (id Key) String() string {
 
 func (id CommitID) String() string {
 	return string(id)
+}
+
+func (id CommitID) Ref() Ref {
+	return Ref(id)
 }
 
 type graveler struct {
@@ -888,23 +908,51 @@ func (g *graveler) CommitExistingMetaRange(ctx context.Context, repositoryID Rep
 			return "", ErrMetaRangeNotFound
 		}
 
-		newCommit, err := g.RefManager.AddCommit(ctx, repositoryID, Commit{
+		commit := Commit{
 			Committer:    committer,
 			Message:      message,
 			MetaRangeID:  metaRangeID,
 			CreationDate: time.Now(),
-			Parents:      CommitParents{branch.CommitID},
+			Parents:      make(CommitParents, 0, 1),
 			Metadata:     metadata,
-		})
+		}
+		if branch.CommitID != "" {
+			commit.Parents = append(commit.Parents, branch.CommitID)
+		}
+
+		commitID, err := g.RefManager.AddCommit(ctx, repositoryID, commit)
 		if err != nil {
 			return "", fmt.Errorf("add commit: %w", err)
 		}
-		return newCommit, nil
+		return commitID, nil
 	})
 	if err != nil {
 		return "", err
 	}
 	return res.(CommitID), nil
+}
+
+func (g *graveler) AddCommitNoLock(ctx context.Context, repositoryID RepositoryID, commit Commit) (CommitID, error) {
+	repo, err := g.RefManager.GetRepository(ctx, repositoryID)
+	if err != nil {
+		return "", fmt.Errorf("get repository %s: %w", repositoryID, err)
+	}
+
+	// verify access to meta range
+	ok, err := g.CommittedManager.Exists(ctx, repo.StorageNamespace, commit.MetaRangeID)
+	if err != nil {
+		return "", fmt.Errorf("checking for meta range %s: %w", commit.MetaRangeID, err)
+	}
+	if !ok {
+		return "", fmt.Errorf("%w: %s", ErrMetaRangeNotFound, commit.MetaRangeID)
+	}
+
+	// add commit
+	commitID, err := g.RefManager.AddCommit(ctx, repositoryID, commit)
+	if err != nil {
+		return "", fmt.Errorf("add commit: %w", err)
+	}
+	return commitID, nil
 }
 
 func (g *graveler) stagingEmpty(ctx context.Context, branch *Branch) (bool, error) {
