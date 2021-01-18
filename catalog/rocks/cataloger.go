@@ -485,7 +485,7 @@ func (c *cataloger) RollbackCommit(ctx context.Context, repository string, branc
 }
 
 func (c *cataloger) Diff(ctx context.Context, repository string, leftReference string, rightReference string, params catalog.DiffParams) (catalog.Differences, bool, error) {
-	it, err := c.EntryCatalog.Diff(ctx, graveler.RepositoryID(repository), graveler.Ref(leftReference), graveler.Ref(rightReference))
+	it, err := c.EntryCatalog.Compare(ctx, graveler.RepositoryID(repository), graveler.Ref(leftReference), graveler.Ref(rightReference))
 	if err != nil {
 		return nil, false, err
 	}
