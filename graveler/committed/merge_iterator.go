@@ -26,18 +26,18 @@ func (d *mergeIterator) Next() bool {
 		return false
 	}
 	compareVal := d.compareIterator.Value()
-	switch compareVal.Type {
+	switch compareVal.Type() {
 	case graveler.DiffTypeConflict:
 		d.err = graveler.ErrConflictFound
 		d.val = nil
 		return false
 	case graveler.DiffTypeRemoved:
-		d.val = &graveler.ValueRecord{Key: d.compareIterator.Value().Key}
+		d.val = &graveler.ValueRecord{Key: d.compareIterator.Value().Key()}
 		return true
 	default:
 		d.val = &graveler.ValueRecord{
-			Key:   d.compareIterator.Value().Key,
-			Value: d.compareIterator.Value().Value,
+			Key:   d.compareIterator.Value().Key(),
+			Value: d.compareIterator.Value().Value(),
 		}
 		return true
 	}

@@ -158,15 +158,41 @@ type TagRecord struct {
 }
 
 // Diff represents a change in value based on key
-type Diff struct {
-	Type         DiffType
-	Key          Key
-	Value        *Value
-	LeftIdentity []byte // the Identity of the value on the left side of the diff
+type Diff interface {
+	Type() DiffType
+	Key() Key
+	Value() *Value
+	LeftIdentity() []byte // the Identity of the value on the left side of the diff
+}
+
+type DiffResult struct {
+	typ          DiffType
+	key          Key
+	value        *Value
+	leftIdentity []byte // the Identity of the value on the left side of the diff
+}
+
+func NewDiffResult(typ DiffType, key Key, value *Value, leftIdentity []byte) *DiffResult {
+	return &DiffResult{typ: typ, key: key, value: value, leftIdentity: leftIdentity}
+}
+
+func (dr *DiffResult) Type() DiffType {
+	return dr.typ
+}
+
+func (dr *DiffResult) Key() Key {
+	return dr.key
+}
+
+func (dr *DiffResult) Value() *Value {
+	return dr.value
+}
+
+func (dr *DiffResult) LeftIdentity() []byte {
+	return dr.leftIdentity
 }
 
 // Interfaces
-
 type KeyValueStore interface {
 	// Get returns value from repository / reference by key, nil value is a valid value for tombstone
 	// returns error if value does not exist
@@ -312,7 +338,7 @@ type ValueIterator interface {
 type DiffIterator interface {
 	Next() bool
 	SeekGE(id Key)
-	Value() *Diff
+	Value() Diff
 	Err() error
 	Close()
 }
@@ -1091,7 +1117,7 @@ func (g *graveler) getCommitsForMerge(ctx context.Context, repositoryID Reposito
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("get commit by ref %s: %w", from, err)
 	}
-	toCommit, err := g.getCommitRecordFromRef(ctx, repositoryID, Ref(to))
+	toCommit, err := g.getCommitRecordFromRef(ctx, repositoryID, to)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("get commit by branch %s: %w", to, err)
 	}

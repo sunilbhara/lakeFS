@@ -6,6 +6,10 @@ import (
 	"github.com/treeverse/lakefs/graveler"
 )
 
+type conflictCompareResult struct {
+	graveler.Diff
+}
+
 type compareIterator struct {
 	diffIt     graveler.DiffIterator
 	base       Iterator
@@ -32,8 +36,8 @@ func (d *compareIterator) Next() bool {
 	d.isConflict = false
 	for d.diffIt.Next() {
 		val := d.diffIt.Value()
-		key := val.Key
-		typ := val.Type
+		key := val.Key()
+		typ := val.Type()
 		baseVal := d.valueFromBase(key)
 		switch typ {
 		case graveler.DiffTypeAdded:
@@ -42,7 +46,7 @@ func (d *compareIterator) Next() bool {
 				// added only on ours
 				return true
 			}
-			if !bytes.Equal(baseVal.Identity, val.Value.Identity) {
+			if !bytes.Equal(baseVal.Identity, val.Value().Identity) {
 				// removed on theirs, but changed on ours
 				d.isConflict = true
 				return true
@@ -54,11 +58,11 @@ func (d *compareIterator) Next() bool {
 				d.isConflict = true
 				return true
 			}
-			if bytes.Equal(baseVal.Identity, val.Value.Identity) {
+			if bytes.Equal(baseVal.Identity, val.Value().Identity) {
 				// changed on theirs, but not on ours
 				continue
 			}
-			if !bytes.Equal(baseVal.Identity, val.LeftIdentity) {
+			if !bytes.Equal(baseVal.Identity, val.LeftIdentity()) {
 				// changed on theirs and ours, to different identities
 				d.isConflict = true
 				return true
@@ -68,7 +72,7 @@ func (d *compareIterator) Next() bool {
 		case graveler.DiffTypeRemoved:
 			// exists on theirs, but not on ours
 			if baseVal != nil {
-				if !bytes.Equal(baseVal.Identity, val.LeftIdentity) {
+				if !bytes.Equal(baseVal.Identity, val.LeftIdentity()) {
 					// changed on theirs, removed on ours
 					d.isConflict = true
 					return true
@@ -87,18 +91,11 @@ func (d *compareIterator) SeekGE(id graveler.Key) {
 	d.isConflict = false
 }
 
-func (d *compareIterator) Value() *graveler.Diff {
-	val := d.diffIt.Value()
-	res := &graveler.Diff{
-		Type:         val.Type,
-		Key:          val.Key,
-		Value:        val.Value,
-		LeftIdentity: val.LeftIdentity,
+func (d *compareIterator) Value() graveler.Diff {
+	if !d.isConflict {
+		return d.diffIt.Value()
 	}
-	if d.isConflict {
-		res.Type = graveler.DiffTypeConflict
-	}
-	return res
+	return &conflictCompareResult{d.diffIt.Value()}
 }
 
 func (d *compareIterator) Close() {
@@ -108,4 +105,8 @@ func (d *compareIterator) Close() {
 
 func (d *compareIterator) Err() error {
 	return nil
+}
+
+func (cr *conflictCompareResult) Type() graveler.DiffType {
+	return graveler.DiffTypeConflict
 }

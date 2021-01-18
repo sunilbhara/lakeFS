@@ -405,7 +405,7 @@ func (e *EntryCatalog) Compare(ctx context.Context, repositoryID graveler.Reposi
 	}); err != nil {
 		return nil, err
 	}
-	iter, err := e.store.Compare(ctx, repositoryID, from, graveler.Ref(to))
+	iter, err := e.store.Compare(ctx, repositoryID, from, to)
 	if err != nil {
 		return nil, err
 	}
