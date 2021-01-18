@@ -16,7 +16,6 @@ const (
 	iteratorStateInit iteratorState = iota
 	iteratorStateQuerying
 	iteratorStateDone
-	iteratorStateClosed
 )
 
 type Iterator struct {
@@ -34,7 +33,7 @@ type Iterator struct {
 
 var ErrIteratorClosed = errors.New("iterator closed")
 
-// NewIterator accepts mvcc branch/commit, read entries as EntryCatalog entries
+// NewIterator returns an iterator over an mvcc branch/commit, giving entries as EntryCatalog.
 func NewIterator(ctx context.Context, db db.Database, branchID int64, commitID int64, fetchSize int) *Iterator {
 	return &Iterator{
 		ctx:       ctx,
@@ -47,14 +46,11 @@ func NewIterator(ctx context.Context, db db.Database, branchID int64, commitID i
 }
 
 func (it *Iterator) Next() bool {
-	if it.state == iteratorStateClosed {
-		panic(ErrIteratorClosed)
-	}
 	if it.err != nil {
 		return false
 	}
 
-	it.fetch()
+	it.maybeFetch()
 
 	// stage a value and increment offset
 	if len(it.buf) == 0 {
@@ -71,8 +67,8 @@ func (it *Iterator) Next() bool {
 }
 
 func (it *Iterator) SeekGE(id rocks.Path) {
-	if it.state == iteratorStateClosed {
-		panic(ErrIteratorClosed)
+	if errors.Is(it.err, ErrIteratorClosed) {
+		return
 	}
 	it.state = iteratorStateInit
 	it.offset = id.String()
@@ -82,9 +78,6 @@ func (it *Iterator) SeekGE(id rocks.Path) {
 }
 
 func (it *Iterator) Value() *rocks.EntryRecord {
-	if it.state == iteratorStateClosed {
-		panic(ErrIteratorClosed)
-	}
 	if it.err != nil {
 		return nil
 	}
@@ -92,22 +85,16 @@ func (it *Iterator) Value() *rocks.EntryRecord {
 }
 
 func (it *Iterator) Err() error {
-	if it.state == iteratorStateClosed {
-		panic(ErrIteratorClosed)
-	}
 	return it.err
 }
 
 func (it *Iterator) Close() {
-	if it.state == iteratorStateClosed {
-		return
-	}
 	it.buf = nil
-	it.state = iteratorStateClosed
+	it.state = iteratorStateDone
 	it.err = ErrIteratorClosed
 }
 
-func (it *Iterator) fetch() {
+func (it *Iterator) maybeFetch() {
 	if it.state == iteratorStateDone {
 		return
 	}

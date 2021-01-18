@@ -13,7 +13,7 @@ import (
 const (
 	MaxPathLength = 1024
 
-	minControlCharCode = 40
+	minControlCharCode = 040 // space
 )
 
 var (
@@ -110,8 +110,11 @@ func ValidateTagID(v interface{}) error {
 	}
 	// http://git-scm.com/docs/git-check-ref-format
 	tag := string(s)
-	if len(tag) == 0 || tag == "@" {
+	if len(tag) == 0 {
 		return ErrRequiredValue
+	}
+	if tag == "@" {
+		return ErrInvalidValue
 	}
 	if strings.HasSuffix(tag, ".") || strings.HasSuffix(tag, ".lock") || strings.HasSuffix(tag, "/") {
 		return ErrInvalidValue
@@ -119,12 +122,12 @@ func ValidateTagID(v interface{}) error {
 	if strings.Contains(tag, "..") || strings.Contains(tag, "//") || strings.Contains(tag, "@{") {
 		return ErrInvalidValue
 	}
-	// Not like git we do enable '~' to support migrate from our previous ref format where commit started with tilda
-	if strings.ContainsAny(tag, "^:?*[\\ ") {
+	// Unlike git, we do allow '~'.  That supports migration from our previous ref format where commits started with a tilde.
+	if strings.ContainsAny(tag, "^:?*[\\") {
 		return ErrInvalidValue
 	}
 	for _, r := range tag {
-		if r < minControlCharCode {
+		if r <= minControlCharCode {
 			return ErrInvalidValue
 		}
 	}

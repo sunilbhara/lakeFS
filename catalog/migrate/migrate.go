@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/jackc/pgx/v4"
 	"github.com/treeverse/lakefs/catalog"
 	"github.com/treeverse/lakefs/catalog/mvcc"
@@ -14,6 +15,7 @@ import (
 	"github.com/treeverse/lakefs/config"
 	"github.com/treeverse/lakefs/db"
 	"github.com/treeverse/lakefs/graveler"
+	"github.com/treeverse/lakefs/logging"
 )
 
 type Migrate struct {
@@ -21,6 +23,8 @@ type Migrate struct {
 	mvccCataloger catalog.Cataloger
 	entryCatalog  *rocks.EntryCatalog
 	repositoryRe  *regexp.Regexp
+	log           logging.Logger
+
 	// per repository state
 	lastCommit graveler.CommitID
 	branches   map[graveler.BranchID]graveler.CommitID
@@ -46,7 +50,7 @@ const (
 	migrateFetchSize = 1000
 
 	initialCommitter     = "migrate"
-	initialCommitMessage = "repository created"
+	initialCommitMessage = "Create empty new branch for migrate"
 )
 
 func (m *Migrate) Close() error {
@@ -65,6 +69,7 @@ func NewMigrate(db db.Database, cfg *config.Config) (*Migrate, error) {
 		db:            db,
 		entryCatalog:  entryCatalog,
 		mvccCataloger: mvccCataloger,
+		log:           logging.Default(),
 	}, nil
 }
 
@@ -83,26 +88,32 @@ func (m *Migrate) FilterRepository(expr string) error {
 
 func (m *Migrate) Run() error {
 	ctx := context.Background()
-	// logger := logging.FromContext(ctx)
-	fmt.Println("==> Listing repositories to import")
-	repos, err := m.listReposToImport(ctx)
+	repos, err := m.listRepositories(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("list repositories: %w", err)
 	}
 
-	fmt.Println("==> Total", len(repos), "repositories to import")
+	m.log.WithField("repositories_len", len(repos)).Info("Start migrate")
+	var merr error
 	for i, repo := range repos {
-		fmt.Printf("==> Import (%d/%d): %s (storage namespace: %s, default branch: %s)\n", i+1, len(repos), repo.Name, repo.StorageNamespace, repo.DefaultBranch)
+		m.log.WithFields(logging.Fields{
+			"step":              i + 1,
+			"total":             len(repos),
+			"repository":        repo.Name,
+			"storage_namespace": repo.StorageNamespace,
+			"default_branch":    repo.DefaultBranch,
+		}).Info("Start repository migrate")
 		_, err := m.migrateRepository(ctx, repo)
 		if err != nil {
-			fmt.Println("ERROR:", err)
-			continue
+			m.log.WithError(err).WithField("repository", repo.Name).Error("Migrate repository")
+			merr = multierror.Append(merr, err)
 		}
 	}
-	return nil
+	m.log.WithFields(logging.Fields{"repositories_len": len(repos)}).Info("Done migrate")
+	return merr
 }
 
-func (m *Migrate) listReposToImport(ctx context.Context) ([]*catalog.Repository, error) {
+func (m *Migrate) listRepositories(ctx context.Context) ([]*catalog.Repository, error) {
 	var repos []*catalog.Repository
 	var after string
 	for {
@@ -124,6 +135,11 @@ func (m *Migrate) listReposToImport(ctx context.Context) ([]*catalog.Repository,
 }
 
 func (m *Migrate) migrateRepository(ctx context.Context, repository *catalog.Repository) (*graveler.RepositoryRecord, error) {
+	// initialize per repository state
+	m.branches = make(map[graveler.BranchID]graveler.CommitID)
+	m.tags = make(map[graveler.TagID]graveler.CommitID)
+	m.lastCommit = ""
+
 	// get or create repository
 	repo, err := m.getOrCreateTargetRepository(ctx, repository)
 	if err != nil {
@@ -183,10 +199,8 @@ func (m *Migrate) getOrCreateTargetRepository(ctx context.Context, repository *c
 	}, nil
 }
 
-// importCommit based on the commit record type
-//  - list entries, create meta range ID and commit it to our repository.
-//  - add a tag with the mvcc commit id to our new repository
-func (m *Migrate) importCommit(ctx context.Context, repo *graveler.RepositoryRecord, commit commitRecord) error {
+// migrateCommit migrate single commit from MVCC based repository to EntryCatalog format
+func (m *Migrate) migrateCommit(ctx context.Context, repo *graveler.RepositoryRecord, commit commitRecord) error {
 	mvccRef := mvcc.MakeReference(commit.BranchName, mvcc.CommitID(commit.CommitID))
 
 	// lookup tag, skip commit if we already tagged this commit
@@ -268,11 +282,6 @@ func (m *Migrate) importCommit(ctx context.Context, repo *graveler.RepositoryRec
 }
 
 func (m *Migrate) migrateCommits(ctx context.Context, repo *graveler.RepositoryRecord) error {
-	// initialize per repository state
-	m.branches = make(map[graveler.BranchID]graveler.CommitID)
-	m.tags = make(map[graveler.TagID]graveler.CommitID)
-	m.lastCommit = ""
-
 	// select all repository commits and import
 	rows, err := m.selectRepoCommits(ctx, repo)
 	if err != nil {
@@ -285,9 +294,14 @@ func (m *Migrate) migrateCommits(ctx context.Context, repo *graveler.RepositoryR
 		if err != nil {
 			return fmt.Errorf("scan commit record: %w", err)
 		}
-		fmt.Printf("Commit %d (%s %d) Author: %s, Date: %s\n",
-			commit.CommitID, commit.BranchName, commit.BranchID, commit.Committer, commit.CreationDate)
-		if err := m.importCommit(ctx, repo, commit); err != nil {
+		m.log.WithFields(logging.Fields{
+			"repository":    string(repo.RepositoryID),
+			"commit_id":     commit.CommitID,
+			"branch_name":   commit.BranchName,
+			"committer":     commit.Committer,
+			"creation_date": commit.CreationDate,
+		}).Info("Commit migrate")
+		if err := m.migrateCommit(ctx, repo, commit); err != nil {
 			return fmt.Errorf("import commit %d: %w", commit.CommitID, err)
 		}
 	}
@@ -327,7 +341,7 @@ func (m *Migrate) selectRepoCommits(ctx context.Context, repo *graveler.Reposito
 }
 
 func (c *commitRecord) Scan(rows pgx.Row) error {
-	return rows.Scan(c.BranchID, c.BranchName, c.CommitID,
-		c.PreviousCommitID, c.Committer, c.Message, c.CreationDate, c.Metadata,
-		c.MergeSourceBranch, c.MergeSourceBranchName, c.MergeSourceCommit, c.MergeType)
+	return rows.Scan(&c.BranchID, &c.BranchName, &c.CommitID,
+		&c.PreviousCommitID, &c.Committer, &c.Message, &c.CreationDate, &c.Metadata,
+		&c.MergeSourceBranch, &c.MergeSourceBranchName, &c.MergeSourceCommit, &c.MergeType)
 }

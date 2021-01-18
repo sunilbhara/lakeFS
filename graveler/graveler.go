@@ -247,7 +247,8 @@ type VersionController interface {
 	// Returns ErrTreeNotFound if the referenced treeID doesn't exist.
 	CommitExistingMetaRange(ctx context.Context, repositoryID RepositoryID, branchID BranchID, metaRangeID MetaRangeID, committer string, message string, metadata Metadata) (CommitID, error)
 
-	// AddCommitNoLock lower API used to add commit into a repository. It will verify that the commit meta-range is accessible but will not lock any metadata update.
+	// AddCommitNoLock creates a commit and associated it to the repository without locking metadata update.
+	// Returns ErrTreeNotFound if the referenced treeID doesn't exist.
 	AddCommitNoLock(ctx context.Context, repositoryID RepositoryID, commit Commit) (CommitID, error)
 
 	// GetCommit returns the Commit metadata object for the given CommitID
@@ -932,6 +933,7 @@ func (g *graveler) CommitExistingMetaRange(ctx context.Context, repositoryID Rep
 	return res.(CommitID), nil
 }
 
+// AddCommitNoLock lower API used to add commit into a repository. It will verify that the commit meta-range is accessible but will not lock any metadata update.
 func (g *graveler) AddCommitNoLock(ctx context.Context, repositoryID RepositoryID, commit Commit) (CommitID, error) {
 	repo, err := g.RefManager.GetRepository(ctx, repositoryID)
 	if err != nil {

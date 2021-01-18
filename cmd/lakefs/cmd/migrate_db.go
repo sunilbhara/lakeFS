@@ -42,8 +42,10 @@ var migrateDBCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		if err := migrateTool.Run(); err != nil {
-			fmt.Println("Migration failed:", err)
+		err = migrateTool.Run()
+		if err != nil {
+			fmt.Println("Migration failed")
+			fmt.Println(err)
 			os.Exit(1)
 		}
 	},
