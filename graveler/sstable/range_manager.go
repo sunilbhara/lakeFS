@@ -58,8 +58,8 @@ func (m *RangeManager) GetValueGE(ctx context.Context, ns committed.Namespace, i
 	}
 
 	return &committed.Record{
-		Key:   key.UserKey,
-		Value: value,
+		Key:   append([]byte(nil), key.UserKey...),
+		Value: append([]byte(nil), value...),
 	}, nil
 }
 
@@ -96,8 +96,8 @@ func (m *RangeManager) GetValue(ctx context.Context, ns committed.Namespace, id 
 	}
 
 	return &committed.Record{
-		Key:   key.UserKey,
-		Value: value,
+		Key:   append([]byte(nil), key.UserKey...),
+		Value: append([]byte(nil), value...),
 	}, nil
 }
 

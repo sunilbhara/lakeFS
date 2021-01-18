@@ -489,6 +489,7 @@ func (c *cataloger) Diff(ctx context.Context, repository string, leftReference s
 	if err != nil {
 		return nil, false, err
 	}
+	defer it.Close()
 	return listDiffHelper(it, params.Limit, params.After)
 }
 
@@ -497,6 +498,7 @@ func (c *cataloger) DiffUncommitted(ctx context.Context, repository string, bran
 	if err != nil {
 		return nil, false, err
 	}
+	defer it.Close()
 	return listDiffHelper(it, limit, after)
 }
 

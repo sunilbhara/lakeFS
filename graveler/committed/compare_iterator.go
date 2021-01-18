@@ -36,7 +36,7 @@ func (d *compareIterator) Next() bool {
 	d.isConflict = false
 	for d.diffIt.Next() {
 		val := d.diffIt.Value()
-		key := val.Key()
+		key := val.Key().Copy()
 		typ := val.Type()
 		baseVal := d.valueFromBase(key)
 		switch typ {
@@ -104,7 +104,7 @@ func (d *compareIterator) Close() {
 }
 
 func (d *compareIterator) Err() error {
-	return nil
+	return d.diffIt.Err()
 }
 
 func (cr *conflictCompareResult) Type() graveler.DiffType {

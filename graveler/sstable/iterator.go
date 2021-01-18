@@ -41,7 +41,12 @@ func (iter *Iterator) Next() bool {
 	if iter.currKey == nil && iter.currValue == nil {
 		return false
 	}
-
+	if iter.currKey != nil {
+		*iter.currKey = iter.currKey.Clone()
+	}
+	if iter.currValue != nil {
+		iter.currValue = append([]byte(nil), iter.currValue...)
+	}
 	return true
 }
 

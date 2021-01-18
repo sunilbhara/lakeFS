@@ -32,12 +32,12 @@ func (d *mergeIterator) Next() bool {
 		d.val = nil
 		return false
 	case graveler.DiffTypeRemoved:
-		d.val = &graveler.ValueRecord{Key: d.compareIterator.Value().Key()}
+		d.val = &graveler.ValueRecord{Key: d.compareIterator.Value().Key().Copy()}
 		return true
 	default:
 		d.val = &graveler.ValueRecord{
-			Key:   d.compareIterator.Value().Key(),
-			Value: d.compareIterator.Value().Value(),
+			Key:   d.compareIterator.Value().Key().Copy(),
+			Value: d.compareIterator.Value().Value().Copy(),
 		}
 		return true
 	}

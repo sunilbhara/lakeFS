@@ -54,7 +54,10 @@ func NewDiffIterator(left Iterator, right Iterator) graveler.DiffIterator {
 func diffIteratorNextValue(it Iterator) (*graveler.ValueRecord, *Range, error) {
 	if it.Next() {
 		rec, rng := it.Value()
-		return rec, rng, nil
+		if rec != nil {
+			rec = rec.Copy()
+		}
+		return rec, rng.Copy(), nil
 	}
 	return nil, nil, it.Err()
 }
@@ -62,7 +65,7 @@ func diffIteratorNextValue(it Iterator) (*graveler.ValueRecord, *Range, error) {
 func diffIteratorNextRange(it Iterator) (*Range, error) {
 	if it.NextRange() {
 		_, rng := it.Value()
-		return rng, nil
+		return rng.Copy(), nil
 	}
 	return nil, it.Err()
 }

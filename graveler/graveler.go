@@ -91,6 +91,17 @@ type Value struct {
 	Data     []byte `db:"data"`
 }
 
+func (vl *Value) Copy() *Value {
+	identity := make([]byte, len(vl.Identity))
+	copy(identity, vl.Identity)
+	data := make([]byte, len(vl.Data))
+	copy(data, vl.Data)
+	return &Value{
+		Identity: identity,
+		Data:     data,
+	}
+}
+
 // ValueRecord holds Key with the associated Value information
 type ValueRecord struct {
 	Key Key `db:"key"`
@@ -99,6 +110,17 @@ type ValueRecord struct {
 
 func (v *ValueRecord) IsTombstone() bool {
 	return v.Value == nil
+}
+
+func (v *ValueRecord) Copy() *ValueRecord {
+	var value *Value
+	if v.Value != nil {
+		value = v.Value.Copy()
+	}
+	return &ValueRecord{
+		Key:   v.Key.Copy(),
+		Value: value,
+	}
 }
 
 func (ps CommitParents) Identity() []byte {

@@ -33,3 +33,17 @@ func UnmarshalRange(b []byte) (Range, error) {
 		Count:         p.Count,
 	}, nil
 }
+
+func (r *Range) Copy() *Range {
+	minKey := make(Key, len(r.MinKey))
+	copy(minKey, r.MinKey)
+	maxKey := make(Key, len(r.MaxKey))
+	copy(maxKey, r.MaxKey)
+	return &Range{
+		ID:            r.ID,
+		MinKey:        minKey,
+		MaxKey:        maxKey,
+		EstimatedSize: r.EstimatedSize,
+		Count:         r.Count,
+	}
+}
